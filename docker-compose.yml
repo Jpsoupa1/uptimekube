@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # O Banco de Dados (PostgreSQL)
+  postgres:
+    image: postgres:15-alpine
+    container_name: uptime-db
+    environment:
+      POSTGRES_USER: admin        
+      POSTGRES_PASSWORD: password123 
+      POSTGRES_DB: uptime_db      
+    ports:
+      - "5432:5432"               # Libera a porta para o Windows acessar
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Salva os dados mesmo se reiniciar
+
+  # A Fila de Mensagens (RabbitMQ)
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: uptime-mq
+    ports:
+      - "5672:5672"   # Porta de comunicação (Java usa essa)
+      - "15672:15672" # Painel Visual (Você acessa pelo Chrome)
+    environment:
+      RABBITMQ_DEFAULT_USER: admin     
+      RABBITMQ_DEFAULT_PASS: password123
+
+volumes:
+  postgres_data:
