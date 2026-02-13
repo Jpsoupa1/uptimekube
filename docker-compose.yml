@@ -1,29 +1,71 @@
 version: '3.8'
 
 services:
-  # O Banco de Dados (PostgreSQL)
+
+
+  # parte da infra
+
+
   postgres:
     image: postgres:15-alpine
     container_name: uptime-db
     environment:
-      POSTGRES_USER: admin        
-      POSTGRES_PASSWORD: password123 
-      POSTGRES_DB: uptime_db      
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: uptime_db
     ports:
-      - "5432:5432"               # Libera a porta para o Windows acessar
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data # Salva os dados mesmo se reiniciar
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck: # Garante que o banco está pronto antes do Java tentar conectar
+      test: ["CMD-SHELL", "pg_isready -U admin -d uptime_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # A Fila de Mensagens (RabbitMQ)
   rabbitmq:
     image: rabbitmq:3-management
     container_name: uptime-mq
     ports:
-      - "5672:5672"   # Porta de comunicação (Java usa essa)
-      - "15672:15672" # Painel Visual (Você acessa pelo Chrome)
+      - "5672:5672"
+      - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: admin     
+      RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: password123
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+
+  # aplicacao java
+
+
+  commander:
+    build: ./commander/commander # O Docker vai ler o Dockerfile desta pasta
+    container_name: uptime-commander
+    ports:
+      - "8080:8080"
+    environment:
+      # Dentro do Docker, "localhost" não funciona. 
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uptime_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  scout:
+    build: ./scout
+    container_name: uptime-scout
+    # Não precisa de porta exposta para funcionar, mas ajuda a ver logs
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
 volumes:
   postgres_data:
